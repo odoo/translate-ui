@@ -1,9 +1,9 @@
 import { Component, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { normalizedMatch } from "@web/core/l10n/utils";
-import { user } from "@web/core/user";
 import { useService } from "@web/core/utils/hooks";
 import { isVisible } from "@web/core/utils/ui";
+import { session } from "@web/session";
 import { translateWithoutContext as _ } from "./translation.patch";
 
 /**
@@ -18,6 +18,20 @@ function getFlagUrl(lang) {
 }
 
 /**
+ * @param {TargetedTranslation} translation
+ */
+function isMissingSource(translation) {
+    return !translation.source || R_MISSING_SOURCE.test(translation.source);
+}
+
+/**
+ * @param {TargetedTranslation} translation
+ */
+function isMissingTranslation(translation) {
+    return !translation.translated;
+}
+
+/**
  * @param {string} filter
  * @param {TargetedTranslation} translation
  */
@@ -25,15 +39,19 @@ function matchFilter(filter, translation) {
     if (!filter) {
         return true;
     }
-    if (normalizedMatch(translation.source, filter).match) {
+    if (!isMissingSource(translation) && normalizedMatch(translation.source, filter).match) {
         return true;
     }
-    if (translation.translated) {
-        return normalizedMatch(translation.translation, filter).match;
-    } else {
-        return false;
+    if (
+        !isMissingTranslation(translation) &&
+        normalizedMatch(translation.translation, filter).match
+    ) {
+        return true;
     }
+    return false;
 }
+
+const R_MISSING_SOURCE = /^MISSING_SOURCE_\d{8}$/;
 
 export class InteractiveTranslationSidePanel extends Component {
     static props = {
@@ -63,8 +81,8 @@ export class InteractiveTranslationSidePanel extends Component {
         filter: _(`Filter`),
         hidden: _(`These elements are hidden in the current user interface`),
         highlightDisabled: _(`Translation highlighting has been disabled for this language.`),
-        missingSource: _(`Missing source term`),
         missingTranslation: _(`Missing translation`),
+        noSource: _(`No source term`),
         noTranslations: _(`No translations to show.`),
         refresh: _(`Update language and refresh`),
         toggleMode: _(`Keep track of all previous translations`),
@@ -73,6 +91,8 @@ export class InteractiveTranslationSidePanel extends Component {
     };
 
     LABELS = this.constructor.LABELS;
+    isMissingSource = isMissingSource;
+    isMissingTranslation = isMissingTranslation;
 
     /**
      * Internal set recomputed on each render keeping track of which translations
@@ -216,7 +236,7 @@ export class InteractiveTranslationSidePanel extends Component {
     }
 
     async updateLanguage() {
-        await this.orm.write("res.users", [user.userId], {
+        await this.orm.write("res.users", [session.uid], {
             lang: this.state.lang,
         });
         browser.location.reload();

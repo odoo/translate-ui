@@ -1,13 +1,5 @@
-import {
-    appTranslateFn,
-    TranslatedString,
-    translatedTerms,
-    translatedTermsGlobal,
-    translationLoaded,
-    translationSprintf,
-} from "@web/core/l10n/translation";
+import { appTranslateFn, TranslatedString } from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
-import { composeRegExp } from "@web/core/utils/strings";
 
 /**
  * @typedef {{
@@ -35,36 +27,27 @@ function contextualizeTranslation(context, source, translation) {
     return `_(${context},0{${source}}[${translation}])`;
 }
 
-const R_CONTEXTUALIZED_TRANSLATION = composeRegExp(
-    /_\(/, // starting delimiter
-    /(?<context>[/\w-]+),/, // translation context (i.e. module)
-    /(?<translated>0|1)/, // 1 if translated, else 0
-    /\{(?<source>.*?)\}/, // source string
-    /\[(?<translation>.*)\]/, // translated string
-    /\)/ // ending delimiter
+const R_CONTEXTUALIZED_TRANSLATION = new RegExp(
+    [
+        "_\\(", // starting delimiter
+        "(?<context>[/\\w-]+),", // translation context (i.e. module)
+        "(?<translated>0|1)", // 1 if translated, else 0
+        "\\{(?<source>.*?)\\}", // source string
+        "\\[(?<translation>.*)\\]", // translated string
+        "\\)/", // ending delimiter"
+    ].join("")
 );
 const R_ESCAPED_SUBSTITUTION = /%%s/g; // server-escaped substitutions in source strings
-const S_NO_CONTEXT = Symbol("no-context");
+const S_IGNORE = Symbol("ignore-context");
 
 patch(TranslatedString.prototype, {
     valueOf() {
-        // Cannot call super: this will invoke the existing 'TranslatedString.valueOf'
-        // method
-        const source = String.prototype.valueOf.call(this);
-        const { context, lazy, substitutions } = this;
-        if (lazy && !translatedTerms[translationLoaded]) {
-            // Evaluate lazy translated string while translations are not loaded
-            // -> error
-            throw new Error(`Cannot translate string: translations have not been loaded`);
-        }
-        let translation =
-            translatedTerms[context]?.[source] ?? translatedTermsGlobal[source] ?? source;
-        if (substitutions.length) {
-            translation = translationSprintf(translation, substitutions);
-        }
-        if (isTranslateModeEnabled() && context !== S_NO_CONTEXT) {
+        const translation = super.valueOf();
+        const { context } = this;
+        if (isTranslateModeEnabled() && context !== S_IGNORE) {
+            const source = String.prototype.valueOf.call(this);
             return contextualizeTranslation(context, source, translation);
-        } else if (context === S_NO_CONTEXT && R_CONTEXTUALIZED_TRANSLATION.test(translation)) {
+        } else if (context === S_IGNORE && R_CONTEXTUALIZED_TRANSLATION.test(translation)) {
             return parseTranslatedText(translation)[0];
         } else {
             return translation;
@@ -153,5 +136,5 @@ export function parseTranslatedText(text) {
  * @type {appTranslateFn}
  */
 export function translateWithoutContext(source, ...substitutions) {
-    return appTranslateFn(source, S_NO_CONTEXT, ...substitutions);
+    return appTranslateFn(source, S_IGNORE, ...substitutions);
 }

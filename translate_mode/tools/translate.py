@@ -26,10 +26,8 @@ R_CONTEXTUALIZED_TRANSLATION = re.compile(r"""
 original_get_code_translations = translate.CodeTranslations._get_code_translations
 original_TranslationImporter_save = translate.TranslationImporter.save
 
-next_missing_source_id = 1
 
-
-def contextualize_translation(context: str, source: str, translation: str)-> str:
+def contextualize_translation(context: str, source: str, translation: str) -> str:
     if R_CONTEXTUALIZED_TRANSLATION.match(translation):
         return translation
     translated = 1 if translation else 0
@@ -39,14 +37,12 @@ def contextualize_translation(context: str, source: str, translation: str)-> str
 
 def CodeTranslations_get_code_translations(module_name, lang, filter_func):
     translations = original_get_code_translations(module_name, lang, filter_func)
-    mapped = { source: contextualize_translation(module_name, source,translation)
-        for source, translation in translations.items() }
+    mapped = {source: contextualize_translation(module_name, source, translation)
+        for source, translation in translations.items()}
     return mapped
 
 
 def TranslationImporter_save(self, *args, **kwargs):
-    global next_missing_source_id
-
     counts = defaultdict(lambda: 0)
     addons = set()
 
@@ -66,8 +62,8 @@ def TranslationImporter_save(self, *args, **kwargs):
                     source = record['en_US']
                 else:
                     # No source (English is not installed)
-                    source = f"MISSING_SOURCE_{str(next_missing_source_id).zfill(8)}"
-                    next_missing_source_id += 1
+                    source = f"MISSING_SOURCE_{str(translate.next_missing_source_id).zfill(8)}"
+                    translate.next_missing_source_id += 1
                 for lang in record:
                     if lang == 'en_US':
                         continue
@@ -90,13 +86,14 @@ def TranslationImporter_save(self, *args, **kwargs):
                         counts[model_name] += 1
 
     if len(counts):
-        _logger.debug(f"TranslationImporter: writing values for addons {list(addons)}: {json.dumps(counts, sort_keys=True, indent=2)}")
+        _logger.debug("TranslationImporter: writing values for addons %s: %s", list(addons), json.dumps(counts, sort_keys=True, indent=2))
 
     return original_TranslationImporter_save(self, *args, **kwargs)
 
 
 translate.CodeTranslations._get_code_translations = CodeTranslations_get_code_translations
 translate.TranslationImporter.save = TranslationImporter_save
+translate.next_missing_source_id = 1
 
 # Reset cached translations
 translate.code_translations.python_translations.clear()

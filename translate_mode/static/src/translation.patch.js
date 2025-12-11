@@ -1,5 +1,7 @@
-import { appTranslateFn, TranslatedString } from "@web/core/l10n/translation";
+import * as translationModule from "@web/core/l10n/translation";
 import { patch } from "@web/core/utils/patch";
+
+const translateFn = translationModule._t;
 
 /**
  * @typedef {{
@@ -27,33 +29,46 @@ function contextualizeTranslation(context, source, translation) {
     return `_(${context},0{${source}}[${translation}])`;
 }
 
+function patched_t(source, ...substitutions) {
+    const translation = translateFn(source, ...substitutions);
+    if (typeof translation !== "string") {
+        return translation;
+    }
+    if (isTranslateModeEnabled()) {
+        return contextualizeTranslation("base", source, translation);
+    } else if (R_CONTEXTUALIZED_TRANSLATION.test(translation)) {
+        return parseTranslatedText(translation)[0];
+    }
+}
+
 const R_CONTEXTUALIZED_TRANSLATION = new RegExp(
     [
         "_\\(", // starting delimiter
-        "(?<context>[/\\w-]+),", // translation context (i.e. module)
+        "(?<context>[\\w-]+),", // translation context (i.e. module)
         "(?<translated>0|1)", // 1 if translated, else 0
         "\\{(?<source>.*?)\\}", // source string
         "\\[(?<translation>.*)\\]", // translated string
-        "\\)/", // ending delimiter"
+        "\\)", // ending delimiter"
     ].join("")
 );
 const R_ESCAPED_SUBSTITUTION = /%%s/g; // server-escaped substitutions in source strings
-const S_IGNORE = Symbol("ignore-context");
 
-patch(TranslatedString.prototype, {
+const lt = translateFn.call(null, "I need the LazyTranslatedString class :(");
+const LazyTranslatedString = lt.constructor;
+patch(LazyTranslatedString.prototype, {
     valueOf() {
         const translation = super.valueOf();
-        const { context } = this;
-        if (isTranslateModeEnabled() && context !== S_IGNORE) {
+        const context = "base";
+        if (isTranslateModeEnabled()) {
             const source = String.prototype.valueOf.call(this);
             return contextualizeTranslation(context, source, translation);
-        } else if (context === S_IGNORE && R_CONTEXTUALIZED_TRANSLATION.test(translation)) {
-            return parseTranslatedText(translation)[0];
         } else {
             return translation;
         }
     },
 });
+
+translationModule._t = patched_t;
 
 /**
  * @param {import("@web/env").OdooEnv} [env]
@@ -122,19 +137,4 @@ export function parseTranslatedText(text) {
         }
     }
     return [result + pendingChars, translations];
-}
-
-/**
- * Produces a translated string without a proper context, meaning that the resulting
- * translation will be ignored by the interactive translation system, and that its
- * surrounding context will be lost.
- *
- * This should only be used in the context of the 'InteractiveTranslationSidePanel'
- * to avoid recursive results (i.e. scan highlighted translations -> generating
- * results with other highlighted translations -> scan those translations -> etc.).
- *
- * @type {appTranslateFn}
- */
-export function translateWithoutContext(source, ...substitutions) {
-    return appTranslateFn(source, S_IGNORE, ...substitutions);
 }

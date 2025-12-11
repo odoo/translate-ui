@@ -6,12 +6,17 @@ from . import models
 from . import tools
 
 
+_logger = logging.getLogger(__name__)
+
+
 def pre_init_hook(env):
-    logging.getLogger(__name__).warning("Pre-init hook: caches invalidated")
+    _logger.warning("Pre-init hook: caches invalidated")
     env.invalidate_all()
 
 
 def post_init_hook(env):
-    logging.getLogger(__name__).warning("Post-init hook: reset all loaded translations")
-    modules = env['ir.module.module'].search([])
-    modules._update_translations(overwrite=True)
+    langs = env['res.lang'].get_installed()
+    filter_lang = [code for code, _ in langs]
+    mod_names = [name for name in env['ir.module.module']._installed()]
+    _logger.warning(f"Post-init hook: updating translations for langs {filter_lang} for modules {mod_names}")
+    env['ir.module.module']._load_module_terms(mod_names, filter_lang, overwrite=True)

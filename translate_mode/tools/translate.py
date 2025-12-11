@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import functools
+import re
 import logging
 
 import odoo.tools.translate as translate
@@ -11,90 +11,75 @@ import odoo.tools.translate as translate
 _logger = logging.getLogger(__name__)
 
 
-original_get_translation = translate.get_translation
+R_CONTEXTUALIZED_STRING = re.compile(r"""
+    _\(
+    (?P<context>[/\w-]+),
+    (?P<translated>0|1)
+    \{(?P<source>.*?)\}
+    \[(?P<translation>.*)\]
+    \)
+""")
 
 
-def get_text_alias(source: str, /, *args, **kwargs) -> TranslatedString:
-    module, lang = translate._get_translation_source(1)
-    translation = get_translation(module, lang, source, args or kwargs)
-    return TranslatedString(translation, source, module)
+original_get_code_translations = translate.CodeTranslations._get_code_translations
+original_TranslationImporter_save = translate.TranslationImporter.save
 
 
-def get_translation(module: str, lang: str, source: str, args: tuple | dict) -> TranslatedString:
-    translation = original_get_translation(module, lang, source, args)
-    return TranslatedString(translation, source, module)
+def stringify_contextualized_string(context: str, source: str, translation: str)-> str:
+    if R_CONTEXTUALIZED_STRING.match(translation):
+        return translation
+    translated = int(translation != source)
+    escaped_source = source.replace('%s', '%%s')
+    return f"_({context},{translated}{{{escaped_source}}}[{translation}])"
 
 
-def LazyGettext_translate(self, lang: str = '') -> str:
-    module, lang = translate._get_translation_source(2, self._module, lang, default_lang=self._default_lang)
-    return get_translation(module, lang, self._source, self._args)
+def CodeTranslations_get_code_translations(module_name, lang, filter_func):
+    translations = original_get_code_translations(module_name, lang, filter_func)
+    mapped = { source: stringify_contextualized_string(module_name, source,translation)
+        for source, translation in translations.items() }
+    return mapped
+
+def TranslationImporter_save(self, *args, **kwargs):
+    global_count = 0
+    term_count = 0
+
+    # Iterate through model translations
+    for model_name in self.model_translations:
+        model_values = self.model_translations[model_name]
+        for field_name in model_values:
+            field_values = model_values[field_name]
+            # field = self.env[model_name]._fields.get(field_name)
+            for xmlid in field_values:
+                context = xmlid.split('.')[0]
+                record = field_values[xmlid]
+                for lang in record:
+                    # TODO: find source
+                    record[lang] = stringify_contextualized_string(context, "", record[lang])
+                    global_count += 1
+
+    # Iterate through model translated terms
+    for model_name in self.model_terms_translations:
+        model_values = self.model_terms_translations[model_name]
+        for field_name in model_values:
+            field_values = model_values[field_name]
+            for xmlid in field_values:
+                context = xmlid.split('.')[0]
+                record = field_values[xmlid]
+                for source in record:
+                    terms = record[source]
+                    for lang in terms:
+                        terms[lang] = stringify_contextualized_string(context, source, terms[lang])
+                        term_count += 1
+
+    if global_count + term_count:
+        _logger.warning(f"TranslationImported: flagged {global_count} model translations and {term_count} other translations")
+
+    return original_TranslationImporter_save(self, *args, **kwargs)
 
 
-@functools.total_ordering
-class TranslatedString(str):
-    __slots__ = '_evaluated_str', 'context', 'source', 'translation'
+translate.CodeTranslations._get_code_translations = CodeTranslations_get_code_translations
+translate.TranslationImporter.save = TranslationImporter_save
 
-    def __new__(cls, translation: str | TranslatedString, source: str, context: str):
-        return super().__new__(cls, str(translation))
-
-    def __init__(self, translation: str | TranslatedString, source: str, context: str):
-        if isinstance(translation, TranslatedString):
-            self.translation = translation.translation
-            if not context:
-                context = translation.context
-            if not source:
-                source = translation.source
-        else:
-            self.translation = translation
-        self.context = context
-        self.source = source
-        self._evaluated_str = ""
-
-    def _format(self):
-        if not self._evaluated_str:
-            translated = self.translation != self.source
-            source = self.source.replace('%s', '%%s')
-            self._evaluated_str = f"_({self.context},{int(translated)}{{{source}}}[{self.translation}])"
-        return self._evaluated_str
-
-    def __repr__(self):
-        """ Show for the debugger"""
-        args = {'context': self.context, 'source': self.source, 'translation': self.translation}
-        return f"TranslatedString({args!r})"
-
-    def __str__(self):
-        return self._format()
-
-    def __eq__(self, other):
-        if not isinstance(other, TranslatedString):
-            return False
-        return (self.source == other.source and
-                self.translation == other.translation and
-                self.context == other.context)
-
-    def __hash__(self):
-        return self._format().__hash__()
-
-    def __lt__(self, other):
-        return NotImplemented
-
-    def __add__(self, other):
-        if isinstance(other, str):
-            return self._format() + other
-        elif isinstance(other, TranslatedString):
-            return self._format() + other._format()
-        return NotImplemented
-
-    def __radd__(self, other):
-        if isinstance(other, str):
-            return other + self._format()
-        return NotImplemented
-
-    def __mod__(self, other):
-        return self._format().__mod__(other)
-
-
-translate._ = get_text_alias
-translate.get_text_alias = get_text_alias
-translate.get_translation = get_translation
-translate.LazyGettext._translate = LazyGettext_translate
+# Reset cached translations
+translate.code_translations.python_translations.clear()
+translate.code_translations.web_translations.clear()

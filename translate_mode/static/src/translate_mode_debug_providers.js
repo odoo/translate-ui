@@ -1,6 +1,7 @@
-import { router } from "@web/core/browser/router";
+/** @odoo-module **/
+
+import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
-import { translateWithoutContext as _ } from "./translation.patch";
 
 const commandProviderRegistry = registry.category("command_provider");
 
@@ -17,25 +18,19 @@ if (commandProviderRegistry.contains("debug")) {
                     result.unshift({
                         action() {
                             existingDebugKeys.delete("translate");
-                            router.pushState(
-                                { debug: [...existingDebugKeys].join(",") },
-                                { reload: true }
-                            );
+                            browser.location.search = `?debug=${[...existingDebugKeys].join(",")}`;
                         },
                         category: "debug",
-                        name: _("Deactivate interactive translation mode"),
+                        name: "Deactivate interactive translation mode",
                     });
                 } else {
                     result.unshift({
                         action() {
                             existingDebugKeys.add("translate");
-                            router.pushState(
-                                { debug: [...existingDebugKeys].join(",") },
-                                { reload: true }
-                            );
+                            browser.location.search = `?debug=${[...existingDebugKeys].join(",")}`;
                         },
                         category: "debug",
-                        name: _("Activate interactive translation mode"),
+                        name: "Activate interactive translation mode",
                     });
                 }
                 return result;

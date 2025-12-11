@@ -1,3 +1,5 @@
+/** @odoo-module **/
+
 /**
  * @typedef {[high: number, low: number]} Int64Tuple
  */

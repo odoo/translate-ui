@@ -1,10 +1,11 @@
+/** @odoo-module **/
+
 import { Component, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { useService } from "@web/core/utils/hooks";
 import { isVisible } from "@web/core/utils/ui";
 import { session } from "@web/session";
-import { translateWithoutContext as _ } from "./translation.patch";
 
 /**
  * @typedef {import("./interactive_translation_service").TargetedTranslation} TargetedTranslation
@@ -39,17 +40,33 @@ function matchFilter(filter, translation) {
     if (!filter) {
         return true;
     }
-    if (!isMissingSource(translation) && normalizedMatch(translation.source, filter).match) {
+    if (!isMissingSource(translation) && matchPattern(translation.source, filter).match) {
         return true;
     }
-    if (
-        !isMissingTranslation(translation) &&
-        normalizedMatch(translation.translation, filter).match
-    ) {
+    if (!isMissingTranslation(translation) && matchPattern(translation.translation, filter).match) {
         return true;
     }
     return false;
 }
+
+const matchPattern =
+    typeof normalizedMatch === "function"
+        ? normalizedMatch
+        : function normalizedMatch(string, pattern) {
+              const nString = string
+                  .trim()
+                  .toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "");
+              const nPattern = pattern
+                  .trim()
+                  .toLowerCase()
+                  .normalize("NFD")
+                  .replace(/[\u0300-\u036f]/g, "");
+              return {
+                  match: nString.includes(nPattern),
+              };
+          };
 
 const R_MISSING_SOURCE = /^MISSING_SOURCE_\d{8}$/;
 
@@ -76,21 +93,6 @@ export class InteractiveTranslationSidePanel extends Component {
     };
     static template = "web.InteractiveTranslationSidePanel";
 
-    static LABELS = {
-        edit: _(`Edit translation on Weblate`),
-        filter: _(`Filter`),
-        hidden: _(`These elements are hidden in the current user interface`),
-        highlightDisabled: _(`Translation highlighting has been disabled for this language.`),
-        missingTranslation: _(`Missing translation`),
-        noSource: _(`No source term`),
-        noTranslations: _(`No translations to show.`),
-        refresh: _(`Update language and refresh`),
-        toggleMode: _(`Keep track of all previous translations`),
-        translate: _(`Translate`),
-        translateInto: _(`Translate into`),
-    };
-
-    LABELS = this.constructor.LABELS;
     isMissingSource = isMissingSource;
     isMissingTranslation = isMissingTranslation;
 
@@ -107,7 +109,7 @@ export class InteractiveTranslationSidePanel extends Component {
         this.localization = useService("localization");
 
         this.defaultLang = "en_US";
-        this.defaultLangFlag = [getFlagUrl("us"), _(`English (US)`)];
+        this.defaultLangFlag = [getFlagUrl("us"), `English (US)`];
 
         this.currentLang = this.localization.code;
         this.currentLangFlag = ["", this.localization.code];
@@ -123,7 +125,7 @@ export class InteractiveTranslationSidePanel extends Component {
                 {
                     id: -1,
                     code: this.currentLang,
-                    display_name: _(`loading...`),
+                    display_name: `loading...`,
                 },
             ],
             mode: this.props.mode,
@@ -189,14 +191,14 @@ export class InteractiveTranslationSidePanel extends Component {
         if (untranslated.length) {
             categories.push({
                 id: "untranslated",
-                label: _(`Untranslated`),
+                label: `Untranslated`,
                 translations: untranslated,
             });
         }
         if (translated.length) {
             categories.push({
                 id: "translated",
-                label: _(`Translated`),
+                label: `Translated`,
                 translations: translated,
             });
         }
@@ -244,21 +246,21 @@ export class InteractiveTranslationSidePanel extends Component {
 }
 
 export const TRANSLATABLE_ATTRIBUTE_LABELS = {
-    "aria-label": _(`Aria label`),
-    "aria-placeholder": _(`Aria placeholder`),
-    "aria-roledescription": _(`Aria role description`),
-    "aria-valuetext": _(`Aria value text`),
-    "data-tooltip-info": _(`Tooltip info data`),
-    "data-tooltip": _(`Tooltip data`),
-    "o-we-hint-text": _(`Web editor text hint`),
-    alt: _(`Alternate text`),
-    label: _(`Label`),
-    name: _(`Name`),
-    placeholder: _(`Placeholder`),
-    searchabletext: _(`Searchable text`),
-    title: _(`Title`),
+    "aria-label": `Aria label`,
+    "aria-placeholder": `Aria placeholder`,
+    "aria-roledescription": `Aria role description`,
+    "aria-valuetext": `Aria value text`,
+    "data-tooltip-info": `Tooltip info data`,
+    "data-tooltip": `Tooltip data`,
+    "o-we-hint-text": `Web editor text hint`,
+    alt: `Alternate text`,
+    label: `Label`,
+    name: `Name`,
+    placeholder: `Placeholder`,
+    searchabletext: `Searchable text`,
+    title: `Title`,
 };
 export const TRANSLATABLE_PROPERTY_LABELS = {
-    textContent: _(`Text`),
-    value: _(`Value`),
+    textContent: `Text`,
+    value: `Value`,
 };

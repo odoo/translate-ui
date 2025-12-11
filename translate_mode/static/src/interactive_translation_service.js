@@ -1,3 +1,5 @@
+/** @odoo-module **/
+
 import { onMounted, onWillUnmount, reactive } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";

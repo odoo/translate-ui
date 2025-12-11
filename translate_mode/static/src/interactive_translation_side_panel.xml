@@ -12,7 +12,7 @@
             <header class="d-flex flex-column p-2 gap-2">
                 <form t-on-submit.prevent="this.updateLanguage">
                     <h2 class="d-flex align-items-center gap-2 p-2 m-0 text-nowrap">
-                        <t t-esc="LABELS.translateInto" />
+                        Translate into
                         <select class="o_input fw-bold" name="language" t-att-value="this.state.lang" t-on-change="onLanguageChange">
                             <t t-foreach="this.state.languages" t-as="language" t-key="language.id">
                                 <option
@@ -24,7 +24,7 @@
                         <t t-if="this.currentLang !== this.state.lang">
                             <button
                                 class="btn btn-link px-1 py-0"
-                                t-att-title="LABELS.refresh"
+                                t-att-title="'Update language and refresh'"
                                 type="submit"
                             >
                                 <i class="fa fa-refresh" />
@@ -38,7 +38,7 @@
                             <i
                                 class="fa fa-lg"
                                 t-att-class="this.state.mode === 'keep' ? 'fa-stop-circle-o text-danger' : 'fa-circle text-muted'"
-                                t-att-title="LABELS.toggleMode"
+                                t-att-title="'Keep track of all previous translations'"
                             />
                         </button>
                         <search class="o_searchview form-control d-flex align-items-center gap-2">
@@ -48,7 +48,7 @@
                                     name="filter-translations"
                                     type="text"
                                     class="o_searchview_input flex-grow-1 border-0 p-0 bg-transparent"
-                                    t-att-placeholder="LABELS.filter"
+                                    t-att-placeholder="'Filter'"
                                     t-model="this.state.filter"
                                 />
                             </div>
@@ -56,7 +56,9 @@
                     </div>
                 </t>
                 <t t-else="">
-                    <h5 class="text-muted fw-bold fst-italic text-center p-4" t-esc="LABELS.highlightDisabled" />
+                    <h5 class="text-muted fw-bold fst-italic text-center p-4">
+                        Translation highlighting has been disabled for this language.
+                    </h5>
                 </t>
             </header>
             <div class="d-flex flex-column overflow-auto h-100">
@@ -89,7 +91,7 @@
                                                 <t t-if="this.hiddenTranslations.has(translation)">
                                                     <i
                                                         class="fa fa-eye-slash text-muted"
-                                                        t-att-title="LABELS.hidden"
+                                                        t-att-title="'These elements are hidden in the current user interface'"
                                                     />
                                                 </t>
                                             </h5>
@@ -97,10 +99,10 @@
                                                 class="d-flex gap-1 align-items-center user-select-none"
                                                 target="_blank"
                                                 t-att-href="translation.link"
-                                                t-att-title="LABELS.edit"
+                                                t-att-title="'Edit translation on Weblate'"
                                             >
                                                 <i class="fa fa-external-link" />
-                                                <t t-esc="LABELS.translate" />
+                                                Translate
                                             </a>
                                         </div>
                                         <div class="d-flex gap-2">
@@ -110,7 +112,9 @@
                                                 t-att-alt="this.defaultLangFlag[1]"
                                             />
                                             <t t-if="this.isMissingSource(translation)">
-                                                <span class="text-muted" t-esc="LABELS.noSource" />
+                                                <span class="text-muted">
+                                                    No source term
+                                                </span>
                                             </t>
                                             <t t-else="">
                                                 <span class="text-wrap" t-esc="translation.source" />
@@ -123,7 +127,9 @@
                                                 t-att-alt="this.currentLangFlag[1]"
                                             />
                                             <t t-if="this.isMissingTranslation(translation)">
-                                                <span class="text-muted" t-esc="LABELS.missingTranslation" />
+                                                <span class="text-muted">
+                                                    Missing translation
+                                                </span>
                                             </t>
                                             <t t-else="">
                                                 <span class="text-wrap" t-esc="translation.translation" />

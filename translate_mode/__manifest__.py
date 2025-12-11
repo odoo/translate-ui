@@ -5,9 +5,9 @@
     'category': 'Hidden',
     'summary': 'Activates translation mode on the whole database',
     'description': """TODO: module description""",
-    'depends': ['web',],
+    'depends': ['web'],
     'auto_install': True,
-    'data': [],
+    'installable': True,
     'assets': {
         'web.assets_backend': [
             'translate_mode/static/src/**/*',

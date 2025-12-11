@@ -109,11 +109,11 @@
                                                 t-att-src="this.defaultLangFlag[0]"
                                                 t-att-alt="this.defaultLangFlag[1]"
                                             />
-                                            <t t-if="translation.source">
-                                                <span class="text-wrap" t-esc="translation.source" />
+                                            <t t-if="this.isMissingSource(translation)">
+                                                <span class="text-muted" t-esc="LABELS.noSource" />
                                             </t>
                                             <t t-else="">
-                                                <span class="text-muted" t-esc="LABELS.missingSource" />
+                                                <span class="text-wrap" t-esc="translation.source" />
                                             </t>
                                         </div>
                                         <div class="d-flex gap-2">
@@ -122,11 +122,11 @@
                                                 t-att-src="this.currentLangFlag[0]"
                                                 t-att-alt="this.currentLangFlag[1]"
                                             />
-                                            <t t-if="translation.translated">
-                                                <span class="text-wrap" t-esc="translation.translation" />
+                                            <t t-if="this.isMissingTranslation(translation)">
+                                                <span class="text-muted" t-esc="LABELS.missingTranslation" />
                                             </t>
                                             <t t-else="">
-                                                <span class="text-muted" t-esc="LABELS.missingTranslation" />
+                                                <span class="text-wrap" t-esc="translation.translation" />
                                             </t>
                                         </div>
                                     </div>

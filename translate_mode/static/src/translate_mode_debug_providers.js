@@ -1,6 +1,5 @@
 import { router } from "@web/core/browser/router";
 import { registry } from "@web/core/registry";
-import { translateWithoutContext as _ } from "./translation.patch";
 
 const commandProviderRegistry = registry.category("command_provider");
 
@@ -23,7 +22,7 @@ if (commandProviderRegistry.contains("debug")) {
                             );
                         },
                         category: "debug",
-                        name: _("Deactivate interactive translation mode"),
+                        name: "Deactivate interactive translation mode",
                     });
                 } else {
                     result.unshift({
@@ -35,7 +34,7 @@ if (commandProviderRegistry.contains("debug")) {
                             );
                         },
                         category: "debug",
-                        name: _("Activate interactive translation mode"),
+                        name: "Activate interactive translation mode",
                     });
                 }
                 return result;

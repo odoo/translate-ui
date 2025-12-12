@@ -11,5 +11,5 @@ def pre_init_hook(env):
 def post_init_hook(env):
     langs = env['res.lang'].get_installed()
     filter_lang = [code for code, _ in langs]
-    mod_names = [name for name in env['ir.module.module']._installed()]
+    mod_names = list(env['ir.module.module']._installed())
     env['ir.module.module']._load_module_terms(mod_names, filter_lang, overwrite=True)

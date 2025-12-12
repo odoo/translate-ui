@@ -38,17 +38,14 @@ const R_CONTEXTUALIZED_TRANSLATION = new RegExp(
     ].join("")
 );
 const R_ESCAPED_SUBSTITUTION = /%%s/g; // server-escaped substitutions in source strings
-const S_IGNORE = Symbol("ignore-context");
 
 patch(TranslatedString.prototype, {
     valueOf() {
         const translation = super.valueOf();
         const { context } = this;
-        if (isTranslateModeEnabled() && context !== S_IGNORE) {
+        if (isTranslateModeEnabled()) {
             const source = String.prototype.valueOf.call(this);
             return contextualizeTranslation(context, source, translation);
-        } else if (context === S_IGNORE && R_CONTEXTUALIZED_TRANSLATION.test(translation)) {
-            return parseTranslatedText(translation)[0];
         } else {
             return translation;
         }
@@ -122,19 +119,4 @@ export function parseTranslatedText(text) {
         }
     }
     return [result + pendingChars, translations];
-}
-
-/**
- * Produces a translated string without a proper context, meaning that the resulting
- * translation will be ignored by the interactive translation system, and that its
- * surrounding context will be lost.
- *
- * This should only be used in the context of the 'InteractiveTranslationSidePanel'
- * to avoid recursive results (i.e. scan highlighted translations -> generating
- * results with other highlighted translations -> scan those translations -> etc.).
- *
- * @type {appTranslateFn}
- */
-export function translateWithoutContext(source, ...substitutions) {
-    return appTranslateFn(source, S_IGNORE, ...substitutions);
 }

@@ -3,14 +3,8 @@
 from __future__ import annotations
 
 import re
-import logging
-import json
-from collections import defaultdict
 
 import odoo.tools.translate as translate
-
-
-_logger = logging.getLogger(__name__)
 
 
 R_CONTEXTUALIZED_TRANSLATION = re.compile(r"""
@@ -23,77 +17,33 @@ R_CONTEXTUALIZED_TRANSLATION = re.compile(r"""
 """)
 
 
-original_get_code_translations = translate.CodeTranslations._get_code_translations
-original_TranslationImporter_save = translate.TranslationImporter.save
+original_CSVFileReader__iter__ = translate.CSVFileReader.__iter__
+original_PoFileReader__iter__ = translate.PoFileReader.__iter__
 
 
-def contextualize_translation(context: str, source: str, translation: str) -> str:
+def contextualize_entry(entry):
+    translation = entry.get('value', "")
     if R_CONTEXTUALIZED_TRANSLATION.match(translation):
-        return translation
-    translated = 1 if translation else 0
-    escaped_source = source.replace('%s', '%%s')
-    return f"_({context},{translated}{{{escaped_source}}}[{translation}])"
+        return entry
+    context = entry.get('module', "base")
+    translated = "1" if translation else "0"
+    escaped_source = entry.get('src', "").replace("%s", "%%s")
+    entry['value'] = f"_({context},{translated}{{{escaped_source}}}[{translation}])"
+    return entry
 
 
-def CodeTranslations_get_code_translations(module_name, lang, filter_func):
-    translations = original_get_code_translations(module_name, lang, filter_func)
-    mapped = {source: contextualize_translation(module_name, source, translation)
-        for source, translation in translations.items()}
-    return mapped
+def CSVFileReader__iter__(self):
+    for entry in original_CSVFileReader__iter__(self):
+        yield contextualize_entry(entry)
 
 
-def TranslationImporter_save(self, *args, **kwargs):
-    counts = defaultdict(lambda: 0)
-    addons = set()
-
-    # Iterate through model translations
-    for model_name in self.model_translations:
-        model_values = self.model_translations[model_name]
-        for field_name in model_values:
-            field_values = model_values[field_name]
-            for xmlid in field_values:
-                context = xmlid.split('.')[0]
-                addons.add(context)
-                record = field_values[xmlid]
-                # TODO: not working!
-                # Need to find a way to retrieve the actual 'en_US' value
-                if 'en_US' in record:
-                    # Get source from English value
-                    source = record['en_US']
-                else:
-                    # No source (English is not installed)
-                    source = f"MISSING_SOURCE_{str(translate.next_missing_source_id).zfill(8)}"
-                    translate.next_missing_source_id += 1
-                for lang in record:
-                    if lang == 'en_US':
-                        continue
-                    record[lang] = contextualize_translation(context, source, record[lang])
-                    counts[model_name] += 1
-
-    # Iterate through model translated terms
-    for model_name in self.model_terms_translations:
-        model_values = self.model_terms_translations[model_name]
-        for field_name in model_values:
-            field_values = model_values[field_name]
-            for xmlid in field_values:
-                context = xmlid.split('.')[0]
-                addons.add(context)
-                record_values = field_values[xmlid]
-                for source in record_values:
-                    record = record_values[source]
-                    for lang in record:
-                        record[lang] = contextualize_translation(context, source, record[lang])
-                        counts[model_name] += 1
-
-    if len(counts):
-        _logger.debug("TranslationImporter: writing values for addons %s: %s", list(addons), json.dumps(counts, sort_keys=True, indent=2))
-
-    return original_TranslationImporter_save(self, *args, **kwargs)
+def PoFileReader__iter__(self):
+    for entry in original_PoFileReader__iter__(self):
+        yield contextualize_entry(entry)
 
 
-translate.CodeTranslations._get_code_translations = CodeTranslations_get_code_translations
-translate.TranslationImporter.save = TranslationImporter_save
-translate.next_missing_source_id = 1
+translate.CSVFileReader.__iter__ = CSVFileReader__iter__
+translate.PoFileReader.__iter__ = PoFileReader__iter__
 
 # Reset cached translations
 translate.code_translations.python_translations.clear()

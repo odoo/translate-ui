@@ -269,7 +269,7 @@ class TranslationScanner {
             return;
         }
 
-        const [value, translations] = parseTranslatedText(rawValue.trim());
+        const [value, translations] = parseTranslatedText(rawValue);
         if (!translations.length) {
             return;
         }

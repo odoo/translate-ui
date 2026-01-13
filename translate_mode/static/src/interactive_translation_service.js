@@ -77,8 +77,8 @@ function getLangAndVersion() {
         }
     }
     if (!urlVersion) {
-        const versionInfo = session.server_version_info.map(String);
-        urlVersion = versionInfo[0];
+        const versionInfo = session.server_version_info;
+        urlVersion = String(versionInfo[0]);
         if (versionInfo[1]) {
             const majorVersion = urlVersion.split(/[~-]/g).at(-1);
             urlVersion = `s${majorVersion}-${versionInfo[1]}`;

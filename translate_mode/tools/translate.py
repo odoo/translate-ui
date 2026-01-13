@@ -26,10 +26,11 @@ def contextualize_entry(entry):
     translation = entry.get('value', "")
     if R_CONTEXTUALIZED_TRANSLATION.match(translation):
         return entry
+    source = entry.get('src', "")
     context = entry.get('module', "base")
     translated = "1" if translation else "0"
-    escaped_source = entry.get('src', "").replace("%s", "%%s")
-    entry['value'] = f"_({context},{translated}{{{escaped_source}}}[{translation}])"
+    escaped_source = source.replace("%s", "%%s")
+    entry['value'] = f"_({context},{translated}{{{escaped_source}}}[{translation or source}])"
     return entry
 
 

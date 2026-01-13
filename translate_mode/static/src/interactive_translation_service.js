@@ -62,18 +62,29 @@ function createTranslationPointer(target, translated) {
     translationPointers.set(target, pointer);
 }
 
-/**
- * @param {string} code
- */
-function getLang(code) {
-    if (code === "en_US") {
-        return "en";
+function getLangAndVersion() {
+    if (!urlLang) {
+        const code = localization.code;
+        if (code === "en_US") {
+            urlLang = "en";
+        } else {
+            const [lang, cc] = code.split("_");
+            if (!isNaN(cc)) {
+                urlLang = lang;
+            } else {
+                urlLang = code in WEBLATE_LANG_MAPPING ? WEBLATE_LANG_MAPPING[code] : code;
+            }
+        }
     }
-    const [lang, cc] = code.split("_");
-    if (!isNaN(cc)) {
-        return lang;
+    if (!urlVersion) {
+        const versionInfo = session.server_version_info.map(String);
+        urlVersion = versionInfo[0];
+        if (versionInfo[1]) {
+            const majorVersion = urlVersion.split(/[~-]/g).at(-1);
+            urlVersion = `s${majorVersion}-${versionInfo[1]}`;
+        }
     }
-    return code in WEBLATE_LANG_MAPPING ? WEBLATE_LANG_MAPPING[code] : code;
+    return [urlLang, urlVersion];
 }
 
 const WEBLATE_LANG_MAPPING = {
@@ -88,16 +99,11 @@ const WEBLATE_LANG_MAPPING = {
  * @param {string} context
  */
 function getTranslationLink(source, context) {
-    const versionInfo = session.server_version_info;
-    let version = versionInfo[0];
-    if (versionInfo[1]) {
-        version = `s${version}-${versionInfo[1]}`;
-    }
+    const [lang, version] = getLangAndVersion();
     if (!termHashes.has(source)) {
         termHashes.set(source, siphash(WEBLATE_SIPHASH_KEY, source));
     }
     const checksum = termHashes.get(source);
-    const lang = getLang(localization.code);
     return `${ODOO_TRANSLATE_URL}${version}/${context}/${lang}/?checksum=${checksum}`;
 }
 
@@ -315,6 +321,8 @@ const WEBLATE_SIPHASH_KEY = "Weblate Sip Hash";
 const termHashes = new Map();
 /** @type {Map<HTMLElement, HTMLElement>} */
 const translationPointers = new Map();
+let urlLang = "";
+let urlVersion = "";
 
 export class InteractiveTranslationService {
     started = false;

@@ -8,6 +8,7 @@ import {
 } from "./interactive_translation_side_panel";
 import { siphash } from "./siphash";
 import { isTranslateModeEnabled, parseTranslatedText } from "./translation.patch";
+import { patch } from "@web/core/utils/patch";
 
 /**
  * @typedef {import("./translation.patch").ContextualizedTranslation} ContextualizedTranslation
@@ -124,8 +125,8 @@ function onKeyDown(ev) {
 }
 
 class TranslationScanner {
-    /** @type {Set<Document>} */
-    addedDocuments = new Set();
+    /** @type {Set<HTMLIFrameElement>} */
+    addedIframes = new Set();
     /**
      * @private
      * @type {Map<Element, PositionTranslations[]>}
@@ -216,6 +217,26 @@ class TranslationScanner {
 
     /**
      * @private
+     * @param {HTMLCanvasElement} node
+     * @param {string} text
+     * @param {boolean} highlightsEnabled
+     */
+    _translateCanvasText(canvas, text, highlightsEnabled) {
+        const [value, translations] = parseTranslatedText(text.trim());
+        if (!translations.length) {
+            return text;
+        }
+        if (highlightsEnabled) {
+            const info = this._getElementInfo(canvas);
+            if (info) {
+                info.push(["canvas", translations]);
+            }
+        }
+        return value;
+    }
+
+    /**
+     * @private
      * @param {Node} node
      */
     _translateNode(node) {
@@ -225,9 +246,7 @@ class TranslationScanner {
                     return;
                 }
                 if (node.nodeName === "IFRAME") {
-                    if (node.contentDocument) {
-                        this.addedDocuments.add(node.contentDocument);
-                    }
+                    this.addedIframes.add(node);
                 } else if (node.nodeName === "TITLE") {
                     this._translateProperty(node, "textContent", false);
                     return;
@@ -345,35 +364,53 @@ export class InteractiveTranslationService {
 
         /** @type {"discard" | "keep"} */
         this.mode = "discard";
-        this.observedDocuments = new Set();
+        /** @type {Set<Node>} */
+        this.observedNodes = new Set();
         this.observer = new MutationObserver(this._onMutation.bind(this));
         /** @type {TargetedTranslation[]} */
         this.currentTranslations = reactive([]);
 
-        this.addDocument(document);
+        for (const title of document.head.getElementsByTagName("title")) {
+            this.addObservedNode(title);
+        }
+        this.addObservedNode(document.body, true);
 
         // Initial scan
         const scanner = new TranslationScanner([document.body], this.highlightsEnabled);
-        for (const document of scanner.addedDocuments) {
-            this.addDocument(document);
+        for (const iframe of scanner.addedIframes) {
+            this.addObservedNode(iframe);
         }
         this._registerTranslations(scanner.getGroupedTranslations());
 
         // Start observing mutations immediatly
         this._observe();
+
+        patch(CanvasRenderingContext2D.prototype, {
+            fillText(text, ...args) {
+                return super.fillText(scanner._translateCanvasText(this.canvas, text), ...args);
+            },
+            measureText(text, ...args) {
+                return super.measureText(parseTranslatedText(text)[0], ...args);
+            },
+            strokeText(text, ...args) {
+                return super.strokeText(scanner._translateCanvasText(this.canvas, text), ...args);
+            },
+        });
     }
 
     /**
-     * @param {Document} document
+     * @param {Node} node
+     * @param {boolean} [options]
      */
-    addDocument(document) {
-        if (this.observedDocuments.has(document)) {
+    addObservedNode(node, withListeners) {
+        if (this.observedNodes.has(node)) {
             return;
         }
-        this.observedDocuments.add(document);
-
-        document.addEventListener("pointerdown", onPointerDown, { capture: true });
-        document.addEventListener("keydown", onKeyDown, { capture: true });
+        this.observedNodes.add(node);
+        if (withListeners) {
+            node.addEventListener("pointerdown", onPointerDown, { capture: true });
+            node.addEventListener("keydown", onKeyDown, { capture: true });
+        }
     }
 
     destroy() {
@@ -381,9 +418,9 @@ export class InteractiveTranslationService {
 
         registry.category("main_components").remove("translate-mode-side-panel");
 
-        for (const document of this.observedDocuments) {
-            document.removeEventListener("pointerdown", onPointerDown, { capture: true });
-            document.removeEventListener("keydown", onKeyDown, { capture: true });
+        for (const node of this.observedNodes) {
+            node.removeEventListener("pointerdown", onPointerDown, { capture: true });
+            node.removeEventListener("keydown", onKeyDown, { capture: true });
         }
     }
 
@@ -495,8 +532,8 @@ export class InteractiveTranslationService {
         }
 
         const scanner = new TranslationScanner(targets, this.highlightsEnabled);
-        for (const document of scanner.addedDocuments) {
-            this.addDocument(document);
+        for (const iframe of scanner.addedIframes) {
+            this.addObservedNode(iframe);
         }
         this._registerTranslations(scanner.getGroupedTranslations());
     }
@@ -505,15 +542,29 @@ export class InteractiveTranslationService {
      * @protected
      */
     _observe() {
-        for (const { head, body } of this.observedDocuments) {
-            for (const title of head.getElementsByTagName("title")) {
-                this.observer.observe(title, {
-                    characterData: true,
-                    childList: true,
-                    subtree: true,
-                });
+        for (let node of this.observedNodes) {
+            if (!node.isConnected) {
+                this.observedNodes.delete(node);
+                continue;
             }
-            this.observer.observe(body, {
+            if (node.nodeName === "IFRAME") {
+                const document = node.contentDocument;
+                if (document?.body?.isConnected) {
+                    node = document.body;
+
+                    // Remove existing event listeners (if any)
+                    node.removeEventListener("pointerdown", onPointerDown, { capture: true });
+                    node.removeEventListener("keydown", onKeyDown, { capture: true });
+
+                    // Add them back
+                    node.addEventListener("pointerdown", onPointerDown, { capture: true });
+                    node.addEventListener("keydown", onKeyDown, { capture: true });
+                } else {
+                    this.observedNodes.delete(node);
+                    continue;
+                }
+            }
+            this.observer.observe(node, {
                 attributes: true,
                 characterData: true,
                 childList: true,
@@ -599,4 +650,8 @@ export const interactiveTranslationServiceFactory = {
     },
 };
 
-registry.category("services").add("interactive_translation", interactiveTranslationServiceFactory);
+if (window === window.top) {
+    registry
+        .category("services")
+        .add("interactive_translation", interactiveTranslationServiceFactory);
+}

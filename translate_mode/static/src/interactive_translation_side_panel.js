@@ -1,4 +1,4 @@
-import { Component, onWillDestroy, useRef, useState } from "@odoo/owl";
+import { Component, onWillDestroy, toRaw, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { normalizedMatch } from "@web/core/l10n/utils";
 import { user } from "@web/core/user";
@@ -65,7 +65,13 @@ export class InteractiveTranslationSidePanel extends Component {
                     source: String,
                     targets: {
                         type: Array,
-                        element: { type: Array, element: [HTMLElement, String] },
+                        element: {
+                            type: Array,
+                            element: {
+                                validate: (el) =>
+                                    typeof el === "string" || el?.nodeType === Node.ELEMENT_NODE,
+                            },
+                        },
                     },
                     translated: Boolean,
                     translation: String,
@@ -192,6 +198,7 @@ export class InteractiveTranslationSidePanel extends Component {
      * @param {PointerEvent} ev
      */
     onCardClick(translation, ev) {
+        console.debug(toRaw(translation));
         this.interactiveTranslation.highlightTranslation(translation, ev.ctrlKey);
     }
 
